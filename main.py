@@ -25,6 +25,9 @@ MIN_DUTY = 2.5
 MAX_DUTY = 12.5
 FREQUENCY = 50
 
+# Vibrating Motor
+VIBRATION_PIN = 23
+
 # Define GPIO pins
 CLK_PIN = 17    # Clock pin
 DT_PIN = 18     # Data pin
@@ -66,6 +69,8 @@ def setup():
     # Start PWM with duty cycle 0
     Gate_pwm.start(0)
     Size_pwm.start(0)
+
+    GPIO.setup(VIBRATION_PIN, GPIO.OUTPUT)
     
     print("Setup complete!")
 
@@ -180,6 +185,7 @@ def loop():
             set_angle(Size_pwm, setting[slot]["Pill Size"] * 15)
             time.sleep(1)
             # Do something to check for pill drop
+            vibrate(pattern=[(1,0.1), (0,0.1)] * 5)
             set_angle(Gate_pwm, 0)
             time.sleep(1)
             set_angle(Size_pwm, 0)
@@ -250,6 +256,29 @@ def cleanup():
     GPIO.cleanup()
     print("Done. Goodbye!")
     sys.exit(0)
+
+def vibrate(duration=1, pattern=None):
+    """
+    Control the vibration motor
+    
+    Args:
+        duration: How long to vibrate in seconds
+        pattern: List of tuples (state, time) for pulsing patterns
+                 e.g. [(1,0.5), (0,0.2), (1,0.5)] for on-off-on
+    """
+    current_time = datetime.now()
+    print(f"[{current_time.strftime('%H:%M:%S')}] Vibration activated")
+    
+    if pattern:
+        for state, t in pattern:
+            GPIO.output(VIBRATION_PIN, state)
+            time.sleep(t)
+        GPIO.output(VIBRATION_PIN, 0)  # Ensure motor is off when done
+    else:
+        # Simple vibration for specified duration
+        GPIO.output(VIBRATION_PIN, 1)  # Turn on
+        time.sleep(duration)
+        GPIO.output(VIBRATION_PIN, 0)  # Turn off
 
 # Handle Ctrl+C and other termination signals gracefully
 def signal_handler(sig, frame):
