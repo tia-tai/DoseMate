@@ -5,6 +5,10 @@ import sys
 import threading
 import time
 from datetime import datetime
+import digitalio
+import board
+from PIL import Image, ImageDraw, ImageFont
+import adafruit_rgb_display.st7789 as st7789
 
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
@@ -39,11 +43,13 @@ clk_last_state = None
 button_pressed = False
 lock = threading.Lock()  # For thread safety when updating counter
 
+BAUDRATE = 24000000
+
 def setup():
     """
     Arduino-like setup function - runs once at the beginning
     """
-    global clk_last_state, Gate_pwm, Size_pwm
+    global clk_last_state, Gate_pwm, Size_pwm, disp
     
     print("Setting up...")
     GPIO.setmode(GPIO.BCM)
@@ -71,7 +77,55 @@ def setup():
     Size_pwm.start(0)
 
     GPIO.setup(VIBRATION_PIN, GPIO.OUTPUT)
+
+    cs_pin = digitalio.DigitalInOut(board.D8)  # Set to your CS pin
+    dc_pin = digitalio.DigitalInOut(board.D25)  # Set to your DC pin
+    reset_pin = digitalio.DigitalInOut(board.D27)  # Set to your RESET pin
+
+    # Config for display baudrate (default max is 24mhz):
+    BAUDRATE = 24000000
+
+    # Setup SPI bus using hardware SPI:
+    spi = board.SPI()
+
+    # Create the ST7789 display:
+    disp = st7789.ST7789(
+        spi,
+        cs=cs_pin,
+        dc=dc_pin,
+        rst=reset_pin,
+        baudrate=BAUDRATE,
+        width=240,
+        height=240,  # Change to match your display
+        x_offset=0,
+        y_offset=0,
+    )
+
+    # Create blank image for drawing.
+    # Make sure to create image with mode 'RGB' for full color.
+    height = disp.width  # we swap height/width because of rotation
+    width = disp.height
+    image = Image.new("RGB", (width, height))
+    rotation = 90
     
+    draw = ImageDraw.Draw(image)
+
+    # Draw a filled rectangle as the background
+    draw.rectangle((0, 0, width, height), outline=0, fill=(0, 0, 255))
+
+    # Draw some text
+    font = ImageFont.load_default()
+    text = "Welcome To DoseMate!"
+    (font_width, font_height) = font.getsize(text)
+    draw.text(
+        (width // 2 - font_width // 2, height // 2 - font_height // 2),
+        text,
+        font=font,
+        fill=(255, 255, 0),
+    )
+
+    # Display image.
+    disp.image(image, rotation)
     print("Setup complete!")
 
 def loop():
