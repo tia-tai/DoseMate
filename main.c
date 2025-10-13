@@ -27,32 +27,32 @@ const char alphabet[52][1] = {"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", 
 int onLetter = 0;
 
 void setup() {
-  tft.init(240, 240);
-  
-  // Set rotation (0-3)
-  tft.setRotation(2);
-  
-  // Fill screen with black
-  tft.fillScreen(BLACK);
-  
-  // Display welcome message
-  tft.setCursor(0, 40);
-  tft.setTextColor(WHITE);
-  tft.setTextSize(5);
-  tft.println("STARTING");
-  tft.setCursor(90, 120);
-  tft.setTextSize(5);
-  tft.println("UP");
-
-  pinMode(PIN_CLK, INPUT_PULLUP);
-  pinMode(PIN_DT, INPUT_PULLUP);
-  pinMode(PIN_SW, INPUT_PULLUP);
-
-  attachInterrupt(digitalPinToInterrupt(PIN_CLK), checkEncoder, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(PIN_DT), checkEncoder, CHANGE);
-  
-  delay(2000);
-  tft.fillScreen(BLACK);
+	tft.init(240, 240);
+	
+	// Set rotation (0-3)
+	tft.setRotation(2);
+	
+	// Fill screen with black
+	tft.fillScreen(BLACK);
+	
+	// Display welcome message
+	tft.setCursor(0, 40);
+	tft.setTextColor(WHITE);
+	tft.setTextSize(5);
+	tft.println("STARTING");
+	tft.setCursor(90, 120);
+	tft.setTextSize(5);
+	tft.println("UP");
+	
+	pinMode(PIN_CLK, INPUT_PULLUP);
+	pinMode(PIN_DT, INPUT_PULLUP);
+	pinMode(PIN_SW, INPUT_PULLUP);
+	
+	attachInterrupt(digitalPinToInterrupt(PIN_CLK), checkEncoder, CHANGE);
+	attachInterrupt(digitalPinToInterrupt(PIN_DT), checkEncoder, CHANGE);
+	
+	delay(2000);
+	tft.fillScreen(BLACK);
 }
 
 void loop() {}
