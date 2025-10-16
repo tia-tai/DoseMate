@@ -33,11 +33,11 @@ int dispenser = 0;
 const char* settings[3] = {"Interval", "Amount", "Exit"};
 int setting = 0;
 
-int value[4][3] = {
-  {0, 0, 0},
-  {0, 0, 0},
-  {0, 0, 0},
-  {0, 0, 0},
+int value[4][2] = {
+  {0, 0},
+  {0, 0},
+  {0, 0},
+  {0, 0},
 };
 
 void setup() {
@@ -63,7 +63,29 @@ void setup() {
   render_Home();
 }
 
-void loop() {}
+void loop() {
+  buttonVal = digitalRead(PIN_SW);
+  if (process == "Home") {
+    render_Home();
+  } else if (process == "Menu"){
+    render_Menu();
+  } else if (process == "Setting") {
+    render_Setting();
+  } else if (process == "Alert") { 
+    render_Alert();
+  }
+
+  if (buttonVal == Low) {
+    
+  }
+
+  if (encoderPos != lastEncoderPos) {
+    if (encoderPos > lastEncoderPos) {
+      
+    } else if (encoderPos < lastEncoderPos) {
+      
+    }
+  }
 }
 
 void render_Startup() {
@@ -117,27 +139,21 @@ void render_Alert() {
 }
 
 void checkEncoder() {
-  // Read the current state of pins A and B
   int a = digitalRead(PIN_CLK);
   int b = digitalRead(PIN_DT);
  
-  // Determine rotation direction using state changes
   static int lastA = LOW;
   static int lastB = LOW;
  
   if (a != lastA || b != lastB) {
     if (lastA == LOW && a == HIGH) {
-      // A rising edge
       if (b == LOW) {
-        // Clockwise rotation
         encoderPos++;
       } else {
-        // Counterclockwise rotation
         encoderPos--;
       }
     }
-   
-    // Update last states
+
     lastA = a;
     lastB = b;
   }
