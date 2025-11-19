@@ -30,14 +30,15 @@ int onLetter = 0;
 const char* dispensers[6] = {"Slot 1", "Slot 2", "Slot 3", "Slot 4", "Exit"};
 int dispenser = 0;
 
-const char* settings[3] = {"Interval", "Amount", "Exit"};
+const char* settings[6] = {"Interval", "Amount", "Calibrate", "Activate", "Clear", "Exit"};
 int setting = 0;
+bool buttonClicked = false;
 
-int value[4][2] = {
-  {0, 0},
-  {0, 0},
-  {0, 0},
-  {0, 0},
+int value[4][4] = {
+  {1, 1, 0, 0},
+  {1, 1, 0, 0},
+  {1, 1, 0, 0},
+  {1, 1, 0, 0},
 };
 
 void setup() {
@@ -76,14 +77,99 @@ void loop() {
   }
 
   if (buttonVal == Low) {
-    
+    if (process == "Home") {
+      process = "Menu";
+    } else if (process == "Menu") {
+      if (dispenser == 4) {
+        process = "Home";
+      } else {
+        process = "Setting";
+      }
+    } else if (process == "Setting") {
+      if (setting == 3) {
+        process = "Menu";
+      } else if (setting == 2) {
+        // do something with calibration after integrating the force sensor
+      } else if (setting == 4) {
+        value[dispenser][0] = 1;
+        value[dispenser][1] = 1;
+        value[dispenser][2] = 0; 
+        value[dispenser][3] = 0;
+      } else if (setting == 3) {
+        int onOff = value[dispenser][3];
+        if (onOff) {
+          value[dispenser][3] = 0;
+        } else {
+          value[dispenser][3] = 1;
+        }
+      } else {
+        if (buttonClicked) {
+          buttonClicked = false;
+        } else {
+          buttonClicked = true;
+        }
+      }
+    }
   }
 
   if (encoderPos != lastEncoderPos) {
     if (encoderPos > lastEncoderPos) {
-      
+      if (process == "Menu") {
+        if (dispenser < 4) {
+          dispenser++;
+        } else {
+          dispenser = 0;
+        }
+      } else if (process = "Setting") {
+        if (buttonClicked) {
+          if (setting == 0) {
+            value[dispenser][0]++;
+          } else if (setting == 1) {
+            int dosage = value[dispenser][1];
+            if (dosage < 5) {
+              value[dispenser][1]++;
+            } else {
+              value[dispenser][1] = 1;
+            }
+          }
+        } else {
+          if (setting < 5) {
+            setting++;
+          } else {
+            setting = 0;
+          }
+        }
+      }
     } else if (encoderPos < lastEncoderPos) {
-      
+      if (process == "Menu") {
+        if (dispenser > 0) {
+          dispenser--;
+        } else {
+          dispenser = 5;
+        }
+      } else if (process = "Setting") {
+        if (buttonClicked) {
+          if (setting == 0) {
+            int interval = value[dispenser][0];
+            if (interval > 1) {
+              value[dispenser][0]--;
+            }
+          } else if (setting == 1) {
+            int dosage = value[dispenser][1];
+            if (dosage > 1) {
+              value[dispenser][1]--;
+            } else {
+              value[dispenser][1] = 5;
+            }
+          }
+        } else {
+          if (setting > 0) {
+            setting--;
+          } else {
+            setting = 5;
+          }
+        }
+      }
     }
   }
 }
