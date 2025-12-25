@@ -9,10 +9,13 @@ Scrollable screens:
 Setup:
 1. Start up DoseMate
 2. Click the wheel to enter the menu
-3. Scroll to the desired slot and click the wheel
-4. Click the interval and scroll until the scheduled interval. Click the wheel again
-5. Scroll and click the amount and scroll until the scheduled dosage. Click the wheel again
-6. Scroll and click calibrate. Place a singular pill on the weigh plate and wait for calibration to finish. Click the wheel again
-7. Scroll and click activate.
-8. Scroll and click exit.
-9. DONE! Wait for your pills to be dispensed and the alarms to sound when the time is up.
+3. Scroll to the Wifi and click the wheel
+4. Use the wheel, scroll through the letters, and enter your Wifi name and password
+5. Wait for the connection before scrolling and clicking on exit
+6. Scroll to the desired slot and click the wheel
+7. Click the interval and scroll until the scheduled interval. Click the wheel again
+8. Scroll and click the amount and scroll until the scheduled dosage. Click the wheel again
+9. Scroll and click calibrate. Place a singular pill on the weigh plate and wait for calibration to finish. Click the wheel again
+10. Scroll and click activate.
+11. Scroll and click exit.
+12. DONE! Wait for your pills to be dispensed and the alarms to sound when the time is up.
