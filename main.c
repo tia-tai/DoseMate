@@ -1,5 +1,6 @@
 #include <Adafruit_GFX.h>     // Core graphics library
 #include <Adafruit_ST7789.h>  // Hardware-specific library for ST7789
+#include <WiFi.h>
 
 #define TFT_CS 10
 #define TFT_DC 8
@@ -24,10 +25,16 @@ int buttonVal = 0;
 bool buttonClick = false;
 String screen = "Home";
 
-const char alphabet[52][1] = { "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z" };
+const char alphabet[79][1] = { "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "!", "@", "#", "$", "%", "^", "&", "*", "_", "-", "+", "=", "/", "?", "<", ">", "."};
 int onLetter = 0;
+char ssid[] = "";
+char pass[] = "";
+const char* wifiOptions[3] = {"Connect", "New Wifi", "Exit"};
+const char* newWifiOptions[3] = {"Wifi Name", "Wifi Password", "Exit"};
+int wifiOption = 0;
+int newWifiOption = 0;
 
-const char* dispensers[6] = {"Slot 1", "Slot 2", "Slot 3", "Slot 4", "Exit"};
+const char* dispensers[6] = {"Slot 1", "Slot 2", "Slot 3", "Slot 4", "Wifi", "Exit"};
 int dispenser = 0;
 
 const char* settings[6] = {"Interval", "Amount", "Calibrate", "Activate", "Clear", "Exit"};
@@ -42,15 +49,13 @@ int value[4][4] = {
 };
 
 void setup() {
+  Serial.begin(9600);
   tft.init(240, 240);
 
-  // Set rotation (0-3)
   tft.setRotation(2);
 
-  // Fill screen with black
   tft.fillScreen(BLACK);
 
-  // Display welcome message
   render_Startup();
 
   pinMode(PIN_CLK, INPUT_PULLUP);
@@ -74,20 +79,27 @@ void loop() {
     render_Setting();
   } else if (process == "Alert") { 
     render_Alert();
+  } else if (process == "Wifi") {
+    render_Wifi();
+  } else if (process == "New Wifi") {
+    render_NewWifi();
   }
 
   if (buttonVal == Low) {
     if (process == "Home") {
       process = "Menu";
     } else if (process == "Menu") {
-      if (dispenser == 4) {
+      if (dispenser == 5) {
         process = "Home";
+      } else if (dispenser == 4) {
+        process = "Wifi";
       } else {
         process = "Setting";
       }
     } else if (process == "Setting") {
-      if (setting == 3) {
+      if (setting == 5) {
         process = "Menu";
+        setting = 0;
       } else if (setting == 2) {
         // do something with calibration after integrating the force sensor
       } else if (setting == 4) {
@@ -109,16 +121,37 @@ void loop() {
           buttonClicked = true;
         }
       }
+    } else if (process == "Wifi") {
+      if (wifiOption == 0) {
+        while (WiFi.status() != WL_CONNECTED) {
+        Serial.print("Connecting to WiFi...");
+        WiFi.begin(ssid, pass);
+        delay(5000);
+        }
+        Serial.println("Connected!");
+        Serial.println(WiFi.localIP());
+      } else if (wifiOption == 1) {
+        process = "New Wifi";
+      } else {
+        process = "Menu";
+        wifiOption = 0;
+      }
     }
   }
 
   if (encoderPos != lastEncoderPos) {
     if (encoderPos > lastEncoderPos) {
       if (process == "Menu") {
-        if (dispenser < 4) {
+        if (dispenser < 5) {
           dispenser++;
         } else {
           dispenser = 0;
+        }
+      } else if (process == "Wifi") {
+        if (wifiOption < 2) {
+          wifiOption++;
+        } else {
+          wifiOption = 0;
         }
       } else if (process = "Setting") {
         if (buttonClicked) {
@@ -147,7 +180,13 @@ void loop() {
         } else {
           dispenser = 5;
         }
-      } else if (process = "Setting") {
+      } else if (process == "Wifi") {
+        if (wifiOption > 0) {
+          wifiOption--;
+        } else {
+          wifiOption = 2;
+        }
+      }else if (process = "Setting") {
         if (buttonClicked) {
           if (setting == 0) {
             int interval = value[dispenser][0];
@@ -199,11 +238,58 @@ void render_Home() {
 }
 
 void render_Menu() {
-
+  tft.setCursor(30, 40);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(3);
+  tft.println("Select Slot:");
+  tft.setCursor(50, 70);
+  tft.println(dispensers[dispenser]);
+  tft.setCursor(10, 150);
+  tft.setTextSize(2);
+  tft.println("Click to Select");
 }
 
 void render_Setting() {
-  
+  tft.setCursor(30, 40);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(3);
+  tft.println(dispensers[dispenser] + " Settings");
+  tft.setCursor(50, 70);
+  tft.println(settings[setting] + ":");
+  tft.setCursor(10, 150);
+  tft.setTextSize(2);
+  if (setting == 0) {
+    tft.println(value[dispenser][setting] + " hr");
+  } else if (setting == 1) {
+    tft.println(value[dispenser][setting] + " pill");
+  } else if (setting == 2) {
+    tft.println(value[dispenser][setting] + "g");
+  } else if (setting == 3) {
+    int onOff = value[dispenser][setting];
+    if (onOff) {
+      tft.println("On");
+    } else {
+      tft.println("Off");
+    }
+  } else if (setting == 4) {
+    tft.println("Warning! Data will be deleted");
+  }
+}
+
+void render_Wifi() {
+  tft.setCursor(30, 40);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(3);
+  tft.println("Wifi");
+  tft.setCursor(50, 70);
+  tft.println(wifiOptions[wifiOption]);
+  tft.setCursor(10, 150);
+  tft.setTextSize(2);
+  tft.println("Click to Select");
+}
+
+void render_NewWifi() {
+
 }
 
 void render_NoPill() {
@@ -243,4 +329,3 @@ void checkEncoder() {
     lastA = a;
     lastB = b;
   }
-}
