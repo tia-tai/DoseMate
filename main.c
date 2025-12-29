@@ -16,6 +16,10 @@ Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
 #define YELLOW 0xFFE0
 #define WHITE 0xFFFF
 
+#define DT A2
+#define SCK A3
+#define sw 3
+
 const int PIN_CLK = 2;
 const int PIN_DT = 3;
 const int PIN_SW = 4;
@@ -48,6 +52,10 @@ int value[4][4] = {
   {1, 1, 0, 0},
 };
 
+long sample=0;
+float val=0;
+long count=0;
+
 void setup() {
   Serial.begin(9600);
   tft.init(240, 240);
@@ -71,6 +79,7 @@ void setup() {
 
 void loop() {
   buttonVal = digitalRead(PIN_SW);
+
   if (process == "Home") {
     render_Home();
   } else if (process == "Menu"){
@@ -101,7 +110,12 @@ void loop() {
         process = "Menu";
         setting = 0;
       } else if (setting == 2) {
-        // do something with calibration after integrating the force sensor
+        render_CalibrationInstruction(false);
+        delay(1000);
+        count = readCount();
+        value[dispenser][2] = (((count-sample)/val)-2*((count-sample)/val));
+        render_CalibrationInstruction(true);
+        delay(1000);
       } else if (setting == 4) {
         value[dispenser][0] = 1;
         value[dispenser][1] = 1;
@@ -310,6 +324,22 @@ void render_Alert() {
   tft.println("READY");
 }
 
+void render_CalibrationInstruction(bool completed) {
+  if (completed) {
+    tft.setCursor(30, 40);
+    tft.setTextColor(WHITE);
+    tft.setTextSize(6);
+    tft.println("Calibration Completed");
+  } else {
+    tft.setCursor(30, 40);
+    tft.setTextColor(WHITE);
+    tft.setTextSize(6);
+    tft.println("Place a single pill on the plate");
+    tft.setCursor(30, 120);
+    tft.println("Wait... Weighing...");
+  }
+}
+
 void checkEncoder() {
   int a = digitalRead(PIN_CLK);
   int b = digitalRead(PIN_DT);
@@ -329,3 +359,28 @@ void checkEncoder() {
     lastA = a;
     lastB = b;
   }
+}
+
+unsigned long readCount(void)
+{
+  unsigned long Count;
+  unsigned char i;
+  pinMode(DT, OUTPUT);
+  digitalWrite(DT,HIGH);
+  digitalWrite(SCK,LOW);
+  Count=0;
+  pinMode(DT, INPUT);
+  while(digitalRead(DT));
+  for (i=0;i<24;i++)
+  {
+    digitalWrite(SCK,HIGH);
+    Count=Count<<1;
+    digitalWrite(SCK,LOW);
+    if(digitalRead(DT)) 
+    Count++;
+  }
+  digitalWrite(SCK,HIGH);
+  Count=Count^0x800000;
+  digitalWrite(SCK,LOW);
+  return(Count);
+}
