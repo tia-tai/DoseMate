@@ -40,6 +40,13 @@ String ssid = "";
 String pass = "";
 const char* wifiOptions[3] = {"Connect", "New Wifi", "Exit"};
 int wifiOption = 0;
+int status = WL_IDLE_STATUS;
+int keyIndex = 0;            // your network key index number (needed only for WEP)
+unsigned int localPort = 2390;      // local port to listen for UDP packets
+IPAddress timeServer(162, 159, 200, 123); // pool.ntp.org NTP server
+const int NTP_PACKET_SIZE = 48; // NTP timestamp is in the first 48 bytes of the message
+byte packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming and outgoing packets
+WiFiUDP Udp; // A UDP instance to let us send and receive packets over UDP
 
 // Menu options
 const char* dispensers[6] = {"Slot 1", "Slot 2", "Slot 3", "Slot 4", "Wifi", "Exit"};
@@ -56,6 +63,11 @@ int value[4][4] = {
   {1, 1, 0, 0},
   {1, 1, 0, 0}
 };
+unsigned long nextTime1 = 0UL;
+unsigned long nextTime2 = 0UL;
+unsigned long nextTime3 = 0UL;
+unsigned long nextTime4 = 0UL;
+unsigned long currentTime = 0UL;
 
 // Load cell calibration
 long zeroOffset = 0;
@@ -101,6 +113,10 @@ void loop() {
     lastEncoderPos = encoderPos;
     
     refreshDisplay();
+  }
+
+  if (status == WL_CONNECTED) {
+    currentTime = readTime();
   }
 }
 
@@ -148,6 +164,10 @@ void processButtonClick() {
   }
   else if (process == "New Wifi") {
     handleNewWifiClick();
+  }
+  else if (process == "noWifi") {
+    process = "Menu";
+    render_Menu();
   }
 }
 
@@ -264,6 +284,8 @@ void refreshDisplay() {
     render_Wifi();
   } else if (process == "New Wifi") {
     render_NewWifi();
+  } else if (process == "noWifi") {
+    render_WifiNotFound();
   }
 }
 
@@ -467,36 +489,62 @@ void connectToWifi() {
     render_Wifi();
     return;
   }
-  
-  tft.fillScreen(BLACK);
-  tft.setCursor(20, 100);
-  tft.setTextColor(YELLOW);
-  tft.setTextSize(2);
-  tft.println("Connecting...");
-  
-  Wifi.begin(ssid.c_str(), pass.c_str());
-  
-  int attempts = 0;
-  while (Wifi.status() != WL_CONNECTED && attempts < 20) {
-    delay(500);
-    attempts++;
-  }
-  
-  tft.fillScreen(BLACK);
-  tft.setCursor(20, 100);
-  
-  if (Wifi.status() == WL_CONNECTED) {
-    tft.setTextColor(GREEN);
-    tft.println("Connected!");
-    Serial.println(Wifi.localIP());
-  } else {
+
+  if (WiFi.status() == WL_NO_MODULE) {
+    Serial.println("Communication with WiFi module failed!");
     tft.setTextColor(RED);
     tft.println("Failed!");
+    while (true);
+  }
+  else {
+    tft.fillScreen(BLACK);
+    tft.setCursor(20, 100);
+    tft.setTextColor(YELLOW);
+    tft.setTextSize(2);
+    tft.println("Connecting...");
+
+    // attempt to connect to WiFi network:
+    int attempts = 0;
+    while (status != WL_CONNECTED && attempts < 20) {
+      Serial.print("Attempting to connect to SSID: ");
+      Serial.println(ssid);
+      tft.setTextColor(WHITE);
+      // Connect to WPA/WPA2 network. Change this line if using open network:
+      status = Wifi.begin(ssid.c_str(), pass.c_str());
+
+      // wait 3 seconds for connection:
+      delay(3000);
+      attempts++
+    }
+    
+    tft.fillScreen(BLACK);
+    tft.setCursor(20, 100);
+    
+    if (Wifi.status() == WL_CONNECTED) {
+      tft.setTextColor(GREEN);
+      tft.println("Connected!");
+      Serial.println(Wifi.localIP());
+      Serial.println("\nStarting connection to server...");
+      Udp.begin(localPort);
+    } else {
+      tft.setTextColor(RED);
+      tft.println("Failed!");
+    }
   }
   
   delay(2000);
   tft.fillScreen(BLACK);
   render_Wifi();
+}
+
+void render_WifiNotFound() {
+  tft.fillScreen(BLACK);
+  tft.setCursor(10, 80);
+  tft.setTextColor(RED);
+  tft.setTextSize(4);
+  tft.println("WiFi Not Found");
+  tft.setCursor(10, 130);
+  tft.println("Click to Connect");
 }
 
 void checkEncoder() {
@@ -538,4 +586,70 @@ unsigned long readHX711() {
   digitalWrite(HX711_SCK, LOW);
   
   return count;
+}
+
+unsigned long sendNTPpacket(IPAddress& address) {
+  if (status != WL_CONNECTED) {
+    process = "noWifi";
+  } else {
+    Serial.println("1");
+    // set all bytes in the buffer to 0
+    memset(packetBuffer, 0, NTP_PACKET_SIZE);
+    // Initialize values needed to form NTP request
+    // (see URL above for details on the packets)
+    Serial.println("2");
+    packetBuffer[0] = 0b11100011;   // LI, Version, Mode
+    packetBuffer[1] = 0;     // Stratum, or type of clock
+    packetBuffer[2] = 6;     // Polling Interval
+    packetBuffer[3] = 0xEC;  // Peer Clock Precision
+    // 8 bytes of zero for Root Delay & Root Dispersion
+    packetBuffer[12]  = 49;
+    packetBuffer[13]  = 0x4E;
+    packetBuffer[14]  = 49;
+    packetBuffer[15]  = 52;
+
+    Serial.println("3");
+
+    // all NTP fields have been given values, now
+    // you can send a packet requesting a timestamp:
+    Udp.beginPacket(address, 123); //NTP requests are to port 123
+    Serial.println("4");
+    Udp.write(packetBuffer, NTP_PACKET_SIZE);
+    Serial.println("5");
+    Udp.endPacket();
+    Serial.println("6");
+  }
+}
+
+unsigned long readTime() {
+  sendNTPpacket(timeServer); // send an NTP packet to a time server
+  // wait to see if a reply is available
+  delay(1000);
+  if (Udp.parsePacket()) {
+    Serial.println("packet received");
+    // We've received a packet, read the data from it
+    Udp.read(packetBuffer, NTP_PACKET_SIZE); // read the packet into the buffer
+
+    //the timestamp starts at byte 40 of the received packet and is four bytes,
+    // or two words, long. First, extract the two words:
+
+    unsigned long highWord = word(packetBuffer[40], packetBuffer[41]);
+    unsigned long lowWord = word(packetBuffer[42], packetBuffer[43]);
+    // combine the four bytes (two words) into a long integer
+    // this is NTP time (seconds since Jan 1 1900):
+    unsigned long secsSince1900 = highWord << 16 | lowWord;
+    Serial.print("Seconds since Jan 1 1900 = ");
+    Serial.println(secsSince1900);
+
+    // now convert NTP time into everyday time:
+    Serial.print("Unix time = ");
+    // Unix time starts on Jan 1 1970. In seconds, that's 2208988800:
+    const unsigned long seventyYears = 2208988800UL;
+    // subtract seventy years:
+    unsigned long epoch = secsSince1900 - seventyYears;
+    // print Unix time:
+    Serial.println(epoch);
+
+    return epoch;
+  }
 }
