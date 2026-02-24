@@ -1,7 +1,8 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7789.h>
 #include <RPC.h>
-#include <SPI.h> 
+#include <SPI.h>
+#include "HX711.h"
 
 #define TFT_CS     7   // Chip select
 #define TFT_DC      5   // Data/command
@@ -19,8 +20,10 @@ Adafruit_ST7789 tft = Adafruit_ST7789(&SPI, TFT_CS, TFT_DC, TFT_RST);
 #define WHITE 0xFFFF
 
 // Load cell pins
-#define HX711_DT A2
-#define HX711_SCK A3
+const int LOADCELL_DOUT_PIN = 22;
+const int LOADCELL_SCK_PIN = 23;
+
+HX711 scale;
 
 // Rotary encoder pins
 const int PIN_CLK = 2;
@@ -28,8 +31,8 @@ const int PIN_DT = 3;
 const int PIN_SW = 4;
 
 // Encoder variables
-volatile int encoderPos = 0;
-int lastEncoderPos = 0;
+int position = 0;
+int lastPosition = 0;
 int lastButtonState = HIGH;
 unsigned long lastDebounceTime = 0;
 const unsigned long debounceDelay = 50; // Prevents Button Spamming
@@ -52,38 +55,26 @@ int value[4][4] = {
   {1, 1, 0, 0},
   {1, 1, 0, 0}
 };
-unsigned long nextTime1 = 0UL;
-unsigned long nextTime2 = 0UL;
-unsigned long nextTime3 = 0UL;
-unsigned long nextTime4 = 0UL;
-unsigned long currentTime = 0UL;
-
-// Load cell calibration
-long zeroOffset = 0;
-float calibrationFactor = 1.0;
 
 void setup() {
   Serial.begin(9600);
   
+  // Setup encoder
+  pinMode(PIN_SW, INPUT_PULLUP);
+  pinMode(PIN_DT, INPUT_PULLUP);
+  pinMode(PIN_CLK, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(PIN_DT), checkEncoder, CHANGE);
+
   tft.init(240, 240);
   tft.setRotation(2);
   tft.fillScreen(BLACK);
   
   render_Startup();
-  
-  // Setup encoder
-  pinMode(PIN_CLK, INPUT_PULLUP);
-  pinMode(PIN_DT, INPUT_PULLUP);
-  pinMode(PIN_SW, INPUT_PULLUP);
-  
-  attachInterrupt(digitalPinToInterrupt(PIN_CLK), checkEncoder, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(PIN_DT), checkEncoder, CHANGE);
-  
-  // Setup load cell
-  pinMode(HX711_SCK, OUTPUT);
 
-  long reading = readHX711();
-  zeroOffset = reading;
+  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
+            
+  scale.set_scale(810);
+  scale.tare();
   
   delay(2000);
   render_Home();
@@ -92,10 +83,9 @@ void setup() {
 void loop() {
   handleButton();
   
-  if (encoderPos != lastEncoderPos) {
+  if (position != lastPosition) {
     handleEncoder();
-    lastEncoderPos = encoderPos;
-    
+    lastPosition = position;
     refreshDisplay();
   }
 }
@@ -103,14 +93,14 @@ void loop() {
 void handleButton() {
   int reading = digitalRead(PIN_SW);
   
-  if (reading != lastButtonState) {
-    lastDebounceTime = millis();
-  }
-  
   if ((millis() - lastDebounceTime) > debounceDelay) {
     if (reading == LOW && lastButtonState == HIGH) {
       processButtonClick();
     }
+  }
+
+  if (reading != lastButtonState) {
+    lastDebounceTime = millis();
   }
   
   lastButtonState = reading;
@@ -163,12 +153,11 @@ void handleSettingClick() {
   }
 }
 
-
 void handleEncoder() {
-  int change = encoderPos - lastEncoderPos;
+  int change = position - lastPosition;
   
   if (process == "Menu") {
-    dispenser = (dispenser + change + 6) % 6;
+    dispenser = (dispenser + change + 5) % 5;
   } 
   else if (process == "Setting") {
     if (buttonClicked) {
@@ -208,18 +197,20 @@ void render_Startup() {
 }
 
 void render_Home() {
+  tft.fillScreen(BLACK);
   tft.setCursor(30, 60);
   tft.setTextColor(WHITE);
   tft.setTextSize(3);
   tft.println("Welcome to");
   tft.setCursor(30, 100);
   tft.println("DoseMate");
-  tft.setCursor(10, 180);
+  tft.setCursor(30, 180);
   tft.setTextSize(2);
   tft.println("Click to Enter");
 }
 
 void render_Menu() {
+  tft.fillScreen(BLACK);
   tft.setCursor(20, 40);
   tft.setTextColor(WHITE);
   tft.setTextSize(2);
@@ -235,6 +226,7 @@ void render_Menu() {
 }
 
 void render_Setting() {
+  tft.fillScreen(BLACK);
   tft.setCursor(10, 20);
   tft.setTextColor(WHITE);
   tft.setTextSize(2);
@@ -261,7 +253,8 @@ void render_Setting() {
     tft.print(value[dispenser][1]);
     tft.println(" pills");
   } else if (setting == 2) {
-    tft.print(value[dispenser][2]);
+    float mass = (value[dispenser][2])*0.01;
+    tft.print(mass);
     tft.println(" g");
   } else if (setting == 3) {
     tft.println(value[dispenser][3] ? "ON" : "OFF");
@@ -303,11 +296,11 @@ void calibrateLoadCell() {
   tft.setCursor(10, 80);
   tft.println("Weighing...");
   
-  delay(2000);
+  delay(10000);
+
+  float reading = scale.get_units(20);
   
-  long reading = readHX711();
-  
-  value[dispenser][2] = (int) ((reading - zeroOffset) / 100) * 10;
+  value[dispenser][2] = int(reading * 100);
   
   tft.fillScreen(BLACK);
   tft.setCursor(10, 80);
@@ -323,42 +316,22 @@ void calibrateLoadCell() {
 }
 
 void checkEncoder() {
-  static int lastCLK = HIGH;
-  int currentCLK = digitalRead(PIN_CLK);
-  
-  if (currentCLK != lastCLK && currentCLK == LOW) {
-    if (digitalRead(PIN_DT) == HIGH) {
-      encoderPos++;
-    } else {
-      encoderPos--;
+  int a = digitalRead(PIN_CLK);
+  int b = digitalRead(PIN_DT);
+ 
+  static int lastA = LOW;
+  static int lastB = LOW;
+ 
+  if (a != lastA || b != lastB) {
+    if (lastA == LOW && a == HIGH) {
+      if (b == LOW) {
+        position++;
+      } else {
+        position--;
+      }
     }
+   
+    lastA = a;
+    lastB = b;
   }
-  
-  lastCLK = currentCLK;
-}
-
-unsigned long readHX711() {
-  unsigned long count = 0;
-  
-  pinMode(HX711_DT, OUTPUT);
-  digitalWrite(HX711_DT, HIGH);
-  digitalWrite(HX711_SCK, LOW);
-  pinMode(HX711_DT, INPUT);
-  
-  while (digitalRead(HX711_DT));
-  
-  for (int i = 0; i < 24; i++) {
-    digitalWrite(HX711_SCK, HIGH);
-    count = count << 1;
-    digitalWrite(HX711_SCK, LOW);
-    if (digitalRead(HX711_DT)) {
-      count++;
-    }
-  }
-  
-  digitalWrite(HX711_SCK, HIGH);
-  count = count ^ 0x800000;
-  digitalWrite(HX711_SCK, LOW);
-  
-  return count;
 }
