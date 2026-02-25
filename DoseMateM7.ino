@@ -85,6 +85,14 @@ void setup() {
 }
 
 void loop() {
+  String buffer = "";
+  while (RPC.available()) {
+    buffer += (char)RPC.read();  // Fill the buffer with characters
+  }
+  if (buffer.length() > 0) {
+    Serial.print(buffer);
+  }
+  
   handleButton();
   
   if (position != lastPosition) {
