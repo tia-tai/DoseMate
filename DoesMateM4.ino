@@ -1,8 +1,16 @@
 #include "mbed.h"
 #include <mbed_mktime.h>
 #include "RPC.h"
+#include <Stepper.h> 
+#include "HX711.h"
 
 // Dispenser settings: [interval hours, amount pills per dose, calibration weight, active]
+int oldValue[4][4] = {
+  {1, 1, 0, 0},
+  {1, 1, 0, 0},
+  {1, 1, 0, 0},
+  {1, 1, 0, 0}
+};
 int value[4][4] = {
   {1, 1, 0, 0},
   {1, 1, 0, 0},
@@ -15,33 +23,49 @@ unsigned long nextTime3 = 0UL;
 unsigned long nextTime4 = 0UL;
 unsigned long currentTime = 0UL;
 
-// Load cell calibration
-long zeroOffset = 0;
-float calibrationFactor = 1.0;
+// Setting up Stepper Motors
+int stepsPerRevolution = 64;
+Stepper stepper1(stepsPerRevolution, 8, 9, 10, 11);
+Stepper stepper2(stepsPerRevolution, 8, 9, 10, 11);
+Stepper stepper3(stepsPerRevolution, 8, 9, 10, 11);
+Stepper stepper4(stepsPerRevolution, 8, 9, 10, 11);
+
+// Load cell pins
+const int LOADCELL_DOUT_PIN = 22;
+const int LOADCELL_SCK_PIN = 23;
+
+HX711 scale;
+
+// Speaker pins
+#define SpeakerPin 1
 
 void setup() {
-  Serial.begin(9600);
-  if (RPC.begin()) {
-    RPC.println("M4: Reading the RTC.");
-    RTCset(); //sets the RTC to start from a specific time & date
-  }
+
+  // Setup load cell
+  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
+            
+  scale.set_scale(810);
+  scale.tare();
+
+  RPC.begin();
+  RTCset();
 }
 
 void loop() {
-  curentTime = getCurrenttime();
+  currentTime = getCurrenttime();
   for (int a = 0; a < 4; a++) {
     if (a == 0) {
-      checkTime(nextTime1, value[0][0], a);
+      nextTime1 = checkTime(nextTime1, value[0][0], a);
     } else if (a == 1) {
-      checkTime(nextTime2, value[1][0], a);
+      nextTime2 = checkTime(nextTime2, value[1][0], a);
     } else if (a == 2) {
-      checkTime(nextTime3, value[2][0], a);
-    } else if (a == 4) {
-      checkTime(nextTime4, value[3][0], a);
+      nextTime3 = checkTime(nextTime3, value[2][0], a);
+    } else if (a == 3) {
+      nextTime4 = checkTime(nextTime4, value[3][0], a);
     }
   }
+  delay(1000);
 }
-
 
 unsigned long getCurrenttime() {
   unsigned long currentTime = (unsigned long)time(NULL);
@@ -66,10 +90,89 @@ unsigned long nextInterval(int interval) {
 }
 
 unsigned long checkTime(unsigned long time, int interval, int slot) {
-  if (time <= currentTime) {
-    Serial.println("Time is up");
-    return nextInterval(interval);
+  if (time <= currentTime && time != 0UL) {
+    // do the dispensing
+    alarm();
+    RPC.call("render_Alert");
+    if (value[slot][3] == 1) {
+      return nextInterval(interval);
+    } else {
+      return 0UL;
+    }
   } else {
     return time;
+  }
+}
+
+void playTone(int pin, int frequencyHz, int durationMs) {
+    long halfPeriod = 1000000L / (frequencyHz * 2);
+    long cycles = (long)frequencyHz * durationMs / 1000;
+    for (long i = 0; i < cycles; i++) {
+        digitalWrite(pin, HIGH);
+        delayMicroseconds(halfPeriod);
+        digitalWrite(pin, LOW);
+        delayMicroseconds(halfPeriod);
+    }
+}
+
+void alarm() {
+    int freqs[] = {392, 131, 392, 131, 392, 131};
+    for (int f : freqs) {
+        playTone(SpeakerPin, f, 2000);
+    }
+}
+
+void receivePackage(String package) {
+  String packageItems[16];
+  int itemCount = 0;
+
+  while (package.length() > 0) {
+    int commaIndex = package.indexOf(',');
+    if (commaIndex == -1) {
+      packageItems[itemCount++] = package;
+      break;
+    }
+    packageItems[itemCount++] = package.substring(0, commaIndex);
+    package = package.substring(commaIndex + 1);
+  }
+
+  for (int i = 0; i < 4; i++) {
+    for (int x = 0; x < 4; x++) {
+      int itemIndex = i*4+x; // 0*4 = 0 + 1 = 1 (2nd index) test for 2nd slot: 1*4 = 4 + 1 = 5 (2nd slot, 2nd item)
+      value[i][x] = packageItems[itemIndex].toInt();
+    }
+  }
+  updateChecks();
+}
+
+void updateChecks() {
+  for (int i = 0; i < 4; i++) {
+    for (int x = 0; x < 4; x++) {
+      if (value[i][x] != oldValue[i][x]) {
+        if (x == 2) {
+          if (i == 0) {
+            nextTime1 = nextInterval(value[i][x]);
+          } else if (i == 1) {
+            nextTime2 = nextInterval(value[i][x]);
+          } else if (i == 2) {
+            nextTime3 = nextInterval(value[i][x]);
+          } else if (i == 3) {
+            nextTime4 = nextInterval(value[i][x]);
+          }
+        }
+        if (x == 3) {
+          if (i == 0) {
+            nextTime1 = 0UL;
+          } else if (i == 1) {
+            nextTime2 = 0UL;
+          } else if (i == 2) {
+            nextTime3 = 0UL;
+          } else if (i == 3) {
+            nextTime4 = 0UL;
+          }
+        }
+      }
+      oldValue[i][x] = value[i][x];
+    }
   }
 }
