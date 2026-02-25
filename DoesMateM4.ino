@@ -48,6 +48,7 @@ void setup() {
   scale.tare();
 
   RPC.begin();
+  RPC.bind("receivePackage", receivePackage);
   RTCset();
 }
 
