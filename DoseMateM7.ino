@@ -279,14 +279,14 @@ void render_Alert() {
   tft.println("READY");
 }
 
-void render_NoPill() {
+void render_Warning() {
   tft.fillScreen(BLACK);
-  tft.setCursor(50, 80);
+  tft.setCursor(30, 80);
   tft.setTextColor(RED);
   tft.setTextSize(4);
-  tft.println("NEED");
-  tft.setCursor(15, 130);
-  tft.println("RELOAD");
+  tft.println("Dispensing");
+  tft.setCursor(40, 130);
+  tft.println("Error");
 }
 
 void calibrateLoadCell() {
