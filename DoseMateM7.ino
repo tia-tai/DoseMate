@@ -60,6 +60,8 @@ int value[4][4] = {
 void setup() {
   Serial.begin(9600);
   RPC.begin();
+  RPC.bind("render_Alert", render_Alert);
+  RPC.bind("render_Warning", render_Warning);
   
   // Setup encoder
   pinMode(PIN_SW, INPUT_PULLUP);
