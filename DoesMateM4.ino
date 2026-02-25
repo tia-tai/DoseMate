@@ -92,8 +92,36 @@ unsigned long nextInterval(int interval) {
 unsigned long checkTime(unsigned long time, int interval, int slot) {
   if (time <= currentTime && time != 0UL) {
     // do the dispensing
+    int dose = value[slot][0];
+    float mass = (value[slot][2] * 0.01) * dose;
+    scale.tare();
+    for (int i = 0; i < dose; i++){
+      if (i == 0) {
+        stepper1.setSpeed(10);
+        stepper1.step(64);
+        stepper1.setSpeed(0);
+      } else if (i == 1) {
+        stepper2.setSpeed(10);
+        stepper2.step(64);
+        stepper2.setSpeed(0);
+      } else if (i == 2) {
+        stepper3.setSpeed(10);
+        stepper3.step(64);
+        stepper3.setSpeed(0);
+      } else {
+        stepper4.setSpeed(10);
+        stepper4.step(64);
+        stepper4.setSpeed(0);
+      }
+    }
+    float reading = scale.get_units(20);
     alarm();
-    RPC.call("render_Alert");
+    
+    if (reading < mass + 0.2 && reading > mass - 0.2) {
+      RPC.call("render_Alert");
+    } else {
+      RPC.call("render_Warning");
+    }
     if (value[slot][3] == 1) {
       return nextInterval(interval);
     } else {
