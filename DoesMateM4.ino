@@ -54,6 +54,8 @@ void setup() {
 
 void loop() {
   currentTime = getCurrenttime();
+  RPC.print("M4 System Clock: ");
+  RPC.println(currentTime);
   for (int a = 0; a < 4; a++) {
     if (a == 0) {
       nextTime1 = checkTime(nextTime1, value[0][0], a);
