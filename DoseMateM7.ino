@@ -3,6 +3,7 @@
 #include <RPC.h>
 #include <SPI.h>
 #include "HX711.h"
+#include <string>
 
 #define TFT_CS     7   // Chip select
 #define TFT_DC      5   // Data/command
@@ -58,6 +59,7 @@ int value[4][4] = {
 
 void setup() {
   Serial.begin(9600);
+  RPC.begin();
   
   // Setup encoder
   pinMode(PIN_SW, INPUT_PULLUP);
@@ -334,4 +336,20 @@ void checkEncoder() {
     lastA = a;
     lastB = b;
   }
+}
+
+void sendPackage() {
+  std::string package = "";
+  for (int i = 0; i < 4; i++) {
+    for (int x = 0; x < 4; x++) {
+      package += std::to_string(value[i][x]);
+      if (x < 3) {
+        package += ",";
+      }
+    }
+    if (i < 3) {
+      package += ",";
+    }
+  }
+  RPC.call("receivePackage", package);
 }
