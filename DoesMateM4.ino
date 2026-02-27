@@ -37,7 +37,7 @@ const int LOADCELL_SCK_PIN = 23;
 HX711 scale;
 
 // Speaker pins
-#define SpeakerPin 1
+#define SpeakerPin 24
 
 void setup() {
 
