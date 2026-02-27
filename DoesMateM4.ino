@@ -25,10 +25,10 @@ unsigned long currentTime = 0UL;
 
 // Setting up Stepper Motors
 int stepsPerRevolution = 64;
-Stepper stepper1(stepsPerRevolution, 8, 9, 10, 11);
-Stepper stepper2(stepsPerRevolution, 8, 9, 10, 11);
-Stepper stepper3(stepsPerRevolution, 8, 9, 10, 11);
-Stepper stepper4(stepsPerRevolution, 8, 9, 10, 11);
+Stepper stepper1(stepsPerRevolution, 25, 26, 27, 28);
+Stepper stepper2(stepsPerRevolution, 29, 30, 31, 32);
+Stepper stepper3(stepsPerRevolution, 33, 34, 35, 36);
+Stepper stepper4(stepsPerRevolution, 37, 38, 39, 40);
 
 // Load cell pins
 const int LOADCELL_DOUT_PIN = 22;
