@@ -3,6 +3,8 @@
 #include "RPC.h"
 #include <Stepper.h> 
 #include "HX711.h"
+#include <string>
+#include <vector>
 
 // Dispenser settings: [interval hours, amount pills per dose, calibration weight, active]
 int oldValue[4][4] = {
@@ -24,7 +26,7 @@ unsigned long nextTime4 = 0UL;
 unsigned long currentTime = 0UL;
 
 // Setting up Stepper Motors
-int stepsPerRevolution = 64;
+int stepsPerRevolution = 100;
 Stepper stepper1(stepsPerRevolution, 25, 26, 27, 28);
 Stepper stepper2(stepsPerRevolution, 29, 30, 31, 32);
 Stepper stepper3(stepsPerRevolution, 33, 34, 35, 36);
@@ -43,6 +45,11 @@ void setup() {
 
   // Setup load cell
   scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
+
+  stepper1.setSpeed(200);
+  stepper2.setSpeed(200);
+  stepper3.setSpeed(200);
+  stepper4.setSpeed(200);
             
   scale.set_scale(810);
   scale.tare();
@@ -56,6 +63,7 @@ void loop() {
   currentTime = getCurrenttime();
   RPC.print("M4 System Clock: ");
   RPC.println(currentTime);
+  RPC.println(nextTime1);
   for (int a = 0; a < 4; a++) {
     if (a == 0) {
       nextTime1 = checkTime(nextTime1, value[0][0], a);
@@ -96,31 +104,28 @@ unsigned long checkTime(unsigned long time, int interval, int slot) {
   if (time <= currentTime && time != 0UL) {
     // do the dispensing
     int dose = value[slot][0];
-    float mass = (value[slot][2] * 0.01) * dose;
+    int pillsOut = 0;
+    float mass = value[slot][2] * 0.01;
+    float totalMass = mass * dose;
     scale.tare();
-    for (int i = 0; i < dose; i++){
-      if (i == 0) {
-        stepper1.setSpeed(10);
-        stepper1.step(64);
-        stepper1.setSpeed(0);
-      } else if (i == 1) {
-        stepper2.setSpeed(10);
-        stepper2.step(64);
-        stepper2.setSpeed(0);
-      } else if (i == 2) {
-        stepper3.setSpeed(10);
-        stepper3.step(64);
-        stepper3.setSpeed(0);
+    while (pillsOut < dose) {
+      if (slot == 0) {
+        stepper1.step(2000);
+      } else if (slot == 1) {
+        stepper2.step(2000);
+      } else if (slot == 2) {
+        stepper3.step(2000);
       } else {
-        stepper4.setSpeed(10);
-        stepper4.step(64);
-        stepper4.setSpeed(0);
+        stepper4.step(2000);
       }
+      float reading = scale.get_units(20);
+      pillsOut = int(reading/mass);
     }
+
     float reading = scale.get_units(20);
     alarm();
     
-    if (reading < mass + 0.2 && reading > mass - 0.2) {
+    if (reading < totalMass + 0.2 && reading > totalMass - 0.2) {
       RPC.call("render_Alert");
     } else {
       RPC.call("render_Warning");
@@ -131,7 +136,11 @@ unsigned long checkTime(unsigned long time, int interval, int slot) {
       return 0UL;
     }
   } else {
-    return time;
+    if (value[slot][3] == 1) {
+      return time;
+    } else {
+      return 0UL;
+    }
   }
 }
 
@@ -153,26 +162,29 @@ void alarm() {
     }
 }
 
-void receivePackage(String package) {
-  String packageItems[16];
-  int itemCount = 0;
+void receivePackage(std::string package) {
+  RPC.println(package.c_str());
+  std::vector<int> values;
+  size_t start = 0;
 
-  while (package.length() > 0) {
-    int commaIndex = package.indexOf(',');
-    if (commaIndex == -1) {
-      packageItems[itemCount++] = package;
+  while (true) {
+    size_t comma = package.find(',', start);
+    if (comma == std::string::npos) {
+      values.push_back(std::stoi(package.substr(start)));
       break;
     }
-    packageItems[itemCount++] = package.substring(0, commaIndex);
-    package = package.substring(commaIndex + 1);
+    values.push_back(std::stoi(package.substr(start, comma - start)));
+    start = comma + 1;
   }
+
+  if (values.size() != 16) return;
 
   for (int i = 0; i < 4; i++) {
     for (int x = 0; x < 4; x++) {
-      int itemIndex = i*4+x; // 0*4 = 0 + 1 = 1 (2nd index) test for 2nd slot: 1*4 = 4 + 1 = 5 (2nd slot, 2nd item)
-      value[i][x] = packageItems[itemIndex].toInt();
+      value[i][x] = values[i * 4 + x];
     }
   }
+
   updateChecks();
 }
 
@@ -180,18 +192,17 @@ void updateChecks() {
   for (int i = 0; i < 4; i++) {
     for (int x = 0; x < 4; x++) {
       if (value[i][x] != oldValue[i][x]) {
-        if (x == 2) {
+        if (x == 3 && value[i][x] == 1) {
           if (i == 0) {
-            nextTime1 = nextInterval(value[i][x]);
+            nextTime1 = nextInterval(value[i][0]);
           } else if (i == 1) {
-            nextTime2 = nextInterval(value[i][x]);
+            nextTime2 = nextInterval(value[i][0]);
           } else if (i == 2) {
-            nextTime3 = nextInterval(value[i][x]);
+            nextTime3 = nextInterval(value[i][0]);
           } else if (i == 3) {
-            nextTime4 = nextInterval(value[i][x]);
+            nextTime4 = nextInterval(value[i][0]);
           }
-        }
-        if (x == 3) {
+        } else if (x == 3 && value[i][x] == 0) {
           if (i == 0) {
             nextTime1 = 0UL;
           } else if (i == 1) {
