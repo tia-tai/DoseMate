@@ -124,7 +124,7 @@ void processButtonClick() {
     render_Menu();
   } 
   else if (process == "Menu") {
-    if (dispenser == 5) {
+    if (dispenser == 4) {
       process = "Home";
       dispenser = 0;
       render_Home();
@@ -142,10 +142,12 @@ void processButtonClick() {
 void handleSettingClick() {
   if (setting == 2) {
     calibrateLoadCell();
+    sendPackage();
   } 
   else if (setting == 3) {
     value[dispenser][3] = !value[dispenser][3];
     render_Setting();
+    sendPackage();
   } 
   else if (setting == 4) {
     value[dispenser][0] = 1;
@@ -153,6 +155,7 @@ void handleSettingClick() {
     value[dispenser][2] = 0;
     value[dispenser][3] = 0;
     render_Setting();
+    sendPackage();
   }
   else if (setting == 5) {
     process = "Menu";
@@ -161,6 +164,7 @@ void handleSettingClick() {
   } 
   else {
     buttonClicked = !buttonClicked;
+    sendPackage();
     render_Setting();
   }
 }
